@@ -47,16 +47,18 @@ def load_config() -> dict:
 CONFIG = load_config()
 API_KEY = CONFIG.get("xai_api_key", "")
 LARK_WEBHOOK_URL = CONFIG.get("lark_webhook_url", "")
+MAX_RESULTS = CONFIG.get("max_results_per_category")
+SEARCH_RUNS = CONFIG.get("search_runs_per_category")
 
 # 分类定义：(显示标题, 搜索关键词描述)
 CATEGORIES = [
     ("🚀 新AI产品/工具", "新发布的AI产品、应用、SaaS工具，product launch，AI app"),
-    ("🤖 新AI硬件", "AI芯片、NPU、GPU新品、AI硬件设备发布，AI chip hardware"),
-    ("🔧 AI组件/Skill/MCP", "MCP server、AI agent组件、plugin、skill、function calling工具"),
-    ("📦 开源模型/项目", "开源AI模型、数据集、github项目发布，open source model release"),
-    ("📄 方法论/技术/论文", "AI论文、技术突破、新训练方法、benchmark，research paper"),
-    ("💬 AI行业讨论/争议", "AI行业重要争议、大佬观点、政策监管、融资收购讨论"),
-    ("💡 AI新概念", "新的AI概念、术语、范式、思维框架"),
+    # ("🤖 新AI硬件", "AI芯片、NPU、GPU新品、AI硬件设备发布，AI chip hardware"),
+    # ("🔧 AI组件/Skill/MCP", "MCP server、AI agent组件、plugin、skill、function calling工具"),
+    # ("📦 开源模型/项目", "开源AI模型、数据集、github项目发布，open source model release"),
+    # ("📄 方法论/技术/论文", "AI论文、技术突破、新训练方法、benchmark，research paper"),
+    # ("💬 AI行业讨论/争议", "AI行业重要争议、大佬观点、政策监管、融资收购讨论"),
+    # ("💡 AI新概念", "新的AI概念、术语、范式、思维框架"),
 ]
 
 
@@ -112,16 +114,22 @@ def search_once(client: Client, category_title: str, keywords: str, hours: int) 
 主题：{keywords}
 
 输出要求：
-- 最多返回 8 条最具代表性的推文
+- 最多返回 {MAX_RESULTS} 条最具代表性的推文
 - 没有相关内容时只输出：[暂无]
 - 排除广告、转发无评论、无实质内容的推文
-- 按热度（点赞+转发）从高到低排列
+- 按热度（点赞+转发+收藏）从高到低排列
 
-每条严格按此格式输出（不要加多余文字，每条之间空一行）：
+每条严格按此格式输出（每个字段单独一行，条目之间空一行）：
 • **内容摘要**（1-2句话说明核心信息）
 👤 @用户名
 🔗 推文URL
-⭐ 点赞数/转发数
+⭐ 点赞数/转发数/收藏
+
+示例：
+• **Together AI开源了CoderForge-Preview数据集，生成成本13万美元，包含51k任务的6.7B tokens代理编码轨迹。**
+👤 @ZainHasan6
+🔗 https://x.com/ZainHasan6/status/2026898606838657252
+⭐ 1074/76
 """))
     try:
         response = chat.sample()
@@ -152,9 +160,14 @@ def merge_and_dedup(client: Client, category_title: str, result_a: str, result_b
 合并规则：
 - 内容高度相似的推文只保留热度更高的一条
 - 保留所有不重复的有价值条目
-- 最终最多输出 8 条，按热度从高到低排列
-- 格式保持原样：• **内容摘要** 👤 @用户名 🔗 链接 ⭐ 热度
+- 最终最多输出 {MAX_RESULTS} 条，按热度从高到低排列
 - 没有任何有效内容时只输出：[暂无]
+
+输出格式（每个字段单独一行，条目之间空一行）：
+• **内容摘要**
+👤 @用户名
+🔗 链接
+⭐ 热度
 """))
     try:
         response = chat.sample()
@@ -193,8 +206,13 @@ def translate_to_chinese(client: Client, content: str) -> str:
 - 只翻译 **...** 中的内容摘要部分
 - 保留所有 emoji、@用户名、URL、数字
 - 已经是中文的内容保持不变
-- 格式必须严格保持：• **内容摘要** 👤 @用户名 🔗 链接 ⭐ 热度
 - 不要添加任何额外文字或解释
+
+格式必须严格保持（每个字段单独一行，条目之间空一行）：
+• **内容摘要**
+👤 @用户名
+🔗 链接
+⭐ 热度
 
 原文：
 {content}
@@ -212,7 +230,7 @@ def translate_to_chinese(client: Client, content: str) -> str:
 # ──────────────────────────────────────────
 def generate_report(
     hours: int = 24,
-    runs: int = 2,
+    runs: int = None,
     categories: list = None,
     save: bool = True,
     push_lark: bool = True,
@@ -223,7 +241,7 @@ def generate_report(
 
     参数：
         hours:      搜索最近多少小时，默认24
-        runs:       每个分类搜索几次（1或2），默认2
+        runs:       每个分类搜索几次，默认从配置文件读取
         categories: 自定义分类列表，不传则使用默认7个分类
         save:       是否保存到本地文件，默认True
         push_lark:  是否推送到 Lark，默认True
@@ -231,14 +249,15 @@ def generate_report(
     """
     client = _create_client()
     active_categories = categories or CATEGORIES
+    active_runs = runs if runs is not None else SEARCH_RUNS
     results = {}
 
-    print(f"\n🔍 开始搜索（最近 {hours} 小时，每类搜索 {runs} 次）")
-    print(f"共 {len(active_categories)} 个分类，预计耗时 {len(active_categories) * runs * 20 // 60 + 1} 分钟\n")
+    print(f"\n🔍 开始搜索（最近 {hours} 小时，每类搜索 {active_runs} 次）")
+    print(f"共 {len(active_categories)} 个分类，预计耗时 {len(active_categories) * active_runs * 20 // 60 + 1} 分钟\n")
 
     for i, (title, keywords) in enumerate(active_categories, 1):
         print(f"[{i}/{len(active_categories)}] {title}")
-        result = search_category(client, title, keywords, hours, runs)
+        result = search_category(client, title, keywords, hours, active_runs)
         results[title] = result
         print(f"  ✅ 完成\n")
 
@@ -297,7 +316,7 @@ def scheduled_job():
     """定时任务执行的函数"""
     print(f"\n⏰ 定时任务触发: {datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M:%S')}")
     try:
-        generate_report(hours=24, runs=2, save=True, push_lark=True, translate=True)
+        generate_report(hours=24, save=True, push_lark=True, translate=True)
     except Exception as e:
         print(f"❌ 定时任务执行失败: {e}")
 
@@ -327,7 +346,7 @@ def run_scheduler():
 def main():
     parser = argparse.ArgumentParser(description="xAI X Search AI 热点日报生成器")
     parser.add_argument("--hours", type=int, default=24, help="搜索最近多少小时（默认24）")
-    parser.add_argument("--runs", type=int, default=2, help="每个分类搜索次数，1或2（默认2）")
+    parser.add_argument("--runs", type=int, default=None, help="每个分类搜索次数（默认从配置文件读取）")
     parser.add_argument("--no-save", action="store_true", help="不保存到本地文件")
     parser.add_argument("--no-lark", action="store_true", help="不推送到 Lark")
     parser.add_argument("--no-translate", action="store_true", help="不翻译英文内容")
@@ -340,12 +359,14 @@ def main():
         run_scheduler()
         return
 
+    # 确定 runs 值：命令行 > --quick > 配置文件
+    runs = args.runs
     if args.quick:
-        args.runs = 1
+        runs = 1
 
     report = generate_report(
         hours=args.hours,
-        runs=args.runs,
+        runs=runs,
         save=not args.no_save,
         push_lark=not args.no_lark,
         translate=not args.no_translate,

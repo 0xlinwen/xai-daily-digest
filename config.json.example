@@ -1,4 +1,6 @@
 {
     "xai_api_key": "your-xai-api-key",
-    "lark_webhook_url": "your-lark-webhook-url"
+    "lark_webhook_url": "your-lark-webhook-url",
+    "max_results_per_category": 8,
+    "search_runs_per_category": 2
 }
