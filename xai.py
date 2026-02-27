@@ -53,12 +53,12 @@ SEARCH_RUNS = CONFIG.get("search_runs_per_category")
 # 分类定义：(显示标题, 搜索关键词描述)
 CATEGORIES = [
     ("🚀 新AI产品/工具", "新发布的AI产品、应用、SaaS工具，product launch，AI app"),
-    # ("🤖 新AI硬件", "AI芯片、NPU、GPU新品、AI硬件设备发布，AI chip hardware"),
-    # ("🔧 AI组件/Skill/MCP", "MCP server、AI agent组件、plugin、skill、function calling工具"),
-    # ("📦 开源模型/项目", "开源AI模型、数据集、github项目发布，open source model release"),
-    # ("📄 方法论/技术/论文", "AI论文、技术突破、新训练方法、benchmark，research paper"),
-    # ("💬 AI行业讨论/争议", "AI行业重要争议、大佬观点、政策监管、融资收购讨论"),
-    # ("💡 AI新概念", "新的AI概念、术语、范式、思维框架"),
+    ("🤖 新AI硬件", "AI芯片、NPU、GPU新品、AI硬件设备发布，AI chip hardware"),
+    ("🔧 AI组件/Skill/MCP", "MCP server、AI agent组件、plugin、skill、function calling工具"),
+    ("📦 开源模型/项目", "开源AI模型、数据集、github项目发布，open source model release"),
+    ("📄 方法论/技术/论文", "AI论文、技术突破、新训练方法、benchmark，research paper"),
+    ("💬 AI行业讨论/争议", "AI行业重要争议、大佬观点、政策监管、融资收购讨论"),
+    ("💡 AI新概念", "新的AI概念、术语、范式、思维框架"),
 ]
 
 
